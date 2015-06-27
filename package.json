@@ -1,0 +1,26 @@
+{
+  "name": "backbone-bootloader",
+  "version": "0.1.0",
+  "description": "Simple declarative dependency-driven loading of resources and scripts for a modern Web app",
+  "main": "bootloader.js",
+  "scripts": {
+    "test": "mocha spec"
+  },
+  "keywords": [
+    "backbone",
+    "boot"
+  ],
+  "author": {
+    "name": "Rick Osborne",
+    "email": "ricko@rickosborne.org"
+  },
+  "license": "CC-BY-SA-4.0",
+  "devDependencies": {
+    "babel": "^5.6.14",
+    "chai": "^3.0.0",
+    "mocha": "^2.2.5"
+  },
+  "dependencies": {
+    "backbone": "^1.2.1"
+  }
+}
