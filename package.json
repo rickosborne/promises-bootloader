@@ -4,7 +4,7 @@
   "description": "Simple declarative dependency-driven loading of resources and scripts for a modern Web app",
   "main": "bootloader.js",
   "scripts": {
-    "test": "mocha spec"
+    "test": "mocha --require babel/register spec"
   },
   "keywords": [
     "backbone",
