@@ -23,12 +23,7 @@ export class BootLoader {
   }
 
   declareResource(resourceDefinition) {
-    this._addResource(new Resource(resourceDefinition));
-    return this;
-  }
-
-  _addResource(resource) {
-    if (!resource instanceof Resource) throw new InvalidResourceError();
+    let resource = new Resource(resourceDefinition);
     if (this._resources[resource.name]) throw new DuplicateResourceNameError(resource.name);
     resource.promise = Promise.all(resource.requires.map((name) => this.promiseFor(name))).then((dependencies) => resource.resolveWith(dependencies));
     if (this._promises[resource.name] && this._promises[resource.name].resolve) {
@@ -73,15 +68,6 @@ class Resource {
     return Promise.resolve(this.provider(...dependencies));
   }
 
-  //static buildMany(definition) {
-  //  if (typeof definition !== 'object') throw new InvalidResourceError();
-  //  if (definition.name) return [new Resource(definition)];
-  //  if (!definition.names || !Array.isArray(definition.names)) throw new UnnamedResourceError();
-  //  let resources = [];
-  //  for (let name of definition.names)
-  //    resources.push(new Resource(definition, name));
-  //  return resources;
-  //}
 }
 
 BootLoader.Resource = Resource;
