@@ -87,8 +87,22 @@ describe('BootLoader', function() {
           declareResource({name: 'B', B: () => ops.push('B')}).
           declareResource({name: 'C', requires: 'B', C: () => ops.push('C')})
         ;
-        expect(ops).to.eql(['B', 'C', 'A']);
-      })
+        setTimeout(() => {
+          expect(ops).to.eql(['B', 'C', 'A']);
+          done();
+        }, 1);
+      });
+      it('passes dependencies into provider functions', (done) => {
+        this.subject.
+          declareResource({name: 'A', requires: ['B', 'C'], A: (b, c) => {
+            expect(b).to.eql('BB');
+            expect(c).to.eql('CC');
+            done();
+          }}).
+          declareResource({name: 'B', B: () => 'BB'}).
+          declareResource({name: 'C', requires: 'B', C: () => 'CC'})
+        ;
+      });
     });
   });
 });

@@ -1,5 +1,5 @@
 {
-  "name": "backbone-bootloader",
+  "name": "promises-bootloader",
   "version": "0.1.0",
   "description": "Simple declarative dependency-driven loading of resources and scripts for a modern Web app",
   "main": "bootloader.js",
@@ -7,7 +7,6 @@
     "test": "mocha --require babel/register spec"
   },
   "keywords": [
-    "backbone",
     "boot"
   ],
   "author": {

@@ -70,7 +70,7 @@ class Resource {
   }
 
   resolveWith(dependencies) {
-    return this.provider(...dependencies);
+    return Promise.resolve(this.provider(...dependencies));
   }
 
   //static buildMany(definition) {
