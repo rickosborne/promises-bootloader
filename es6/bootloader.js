@@ -1,6 +1,5 @@
 export class BootLoader {
-  constructor(options) {
-    typeof options === 'object' || (options = {});
+  constructor() {
     this._resources = {};
     this._promises = {};
   }
