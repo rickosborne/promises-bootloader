@@ -9,19 +9,34 @@ export class BootLoader {
     return this._resources[name];
   }
 
+  /**
+   * Get either:
+   * - the resource's promise, or
+   * - a promise for the as-yet-undeclared resource, which will eventually
+   *   resolve to the resource's promise when that resource is declared.
+   *
+   * @param name {String}
+   * @returns {Promise}
+   */
   promiseFor(name) {
     let resource = this.resourceByName(name);
     if (resource) return resource.promise;
     if (this._promises[name]) return this._promises[name];
-    var resolver = null, rejecter = null, promise = new Promise(function (resolve, reject) {
-      resolver = resolve;
-      rejecter = reject;
-    });
-    promise.resolve = resolver;
-    promise.reject = rejecter;
-    return this._promises[name] = promise;
+    return this._promises[name] = buildResolvablePromise();
   }
 
+  /**
+   * Add a new resource, with a `name` and optional `requires`, to the pool of
+   * resources that will be loaded.  The definition object should include a
+   * method named the same as the `name` of the resource, i.e.:
+   *   {
+   *     name: 'zebra',
+   *     requires: ['animal', 'grass'],
+   *     zebra: function(animal, grass) { ... }
+   *   }
+   * @param resourceDefinition {Object}
+   * @returns {BootLoader}
+   */
   declareResource(resourceDefinition) {
     let resource = new Resource(resourceDefinition);
     if (this._resources[resource.name]) throw new DuplicateResourceNameError(resource.name);
@@ -71,6 +86,29 @@ class Resource {
 }
 
 BootLoader.Resource = Resource;
+
+function buildResolvablePromise() {
+  /*
+   This looks awful, I know.  The gist is that we don't have the resource
+   yet, so we can't return its promise.  But we need *something* to return,
+   and that something has to be a promise.  So it needs to be a promise for
+   the as-yet-undeclared resource.  When the resource is finally declared,
+   we can resolve this promise to the new promise on the resource itself.
+   But that means we need a pseudo-promise that we can tell to resolve itself
+   with some value that we'll specify later.
+   And you would *think* you could just say `this.resolve = resolve` inside
+   the executor function ... but nope, as `this` isn't the promise in there.
+   Also, I'd love to encapsulate this inside of a class that extends Promise,
+   but as Promise is still mostly shimmed at this point, that's not feasible.
+   */
+  var resolver = null, rejecter = null, promise = new Promise(function (resolve, reject) {
+    resolver = resolve;
+    rejecter = reject;
+  });
+  promise.resolve = resolver;
+  promise.reject = rejecter;
+  return promise;
+}
 
 class DuplicateResourceNameError extends Error { constructor(name) { super(`Duplicate resource name: ${name}`); } }
 
