@@ -32,3 +32,50 @@ your app.
 
 Long story short, your boot scripts will execute as their dependencies are
 resolved.
+
+## Scripts and JSON
+
+You can also have the BootLoader handle AJAX and getScript-like functionality
+for you via the `json` and `script` attributes:
+
+    BootLoader.declareResource({
+      name: 'animals',
+      requires: ['zebraData', 'zebraBehavior'],
+      animals: function(data) {
+        // the behavior dependency is a script that doesn't return anything
+        // so we can leave it out of the arguments list
+      }
+    });
+
+    // later
+    BootLoader.declareResource({
+      name: 'zebraBehavior',
+      script: 'scripts/zebra.js'
+    });
+
+    // still later
+    BootLoader.declareResource({
+      name: 'zebraData',
+      json: 'assets/zebra.json'
+    });
+
+Not that you *cannot* define a provider (handler) function for either `json` or
+`script` resources.  As in the `animals` example above, declare a post-processing
+resource if you want `onLoad`/`then`-style functionality.  (Because that's
+kindof the whole point here, right?)
+
+BootLoader has its own AJAX and `getScript` functionality, and so *does not*
+require jQuery/zepto/etc to work.  However, if you have something similar
+already loaded and you need its more advanced features, you can tell BootLoader
+to use it:
+
+    BootLoader.declareResource({
+      name: 'zebraBehavior',
+      script: 'path/to/zebra.js',
+      getScript: $.getScript.bind($)
+    });
+    BootLoader.declareResource({
+      name: 'zebraData',
+      json: 'path/to/zebra.json',
+      ajax: $.ajax.bind($)
+    });

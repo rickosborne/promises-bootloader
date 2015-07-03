@@ -1,5 +1,12 @@
 import {BootLoader} from '../es6/bootloader.js';
-import {expect} from 'chai';
+import chai, {expect} from 'chai';
+import chaiAsPromised from 'chai-as-promised';
+import * as sinon from 'sinon';
+import {jsdom, serializeDocument} from 'node-jsdom';
+
+chai.use(chaiAsPromised);
+let _global = typeof global !== "undefined" ? global : self;
+_global.XMLHttpRequest = sinon.FakeXMLHttpRequest;
 
 describe('BootLoader', function() {
   it('is a class', () => expect(BootLoader).is.a('function'));
@@ -12,6 +19,7 @@ describe('BootLoader', function() {
         return {name: `test${count}`, test: provider, requires: req};
       };
     })();
+    let later = (fn) => Promise.resolve().then(fn);
     beforeEach(() => this.subject = new BootLoader());
     context('api', () => {
       let publicMethods = [
@@ -79,18 +87,104 @@ describe('BootLoader', function() {
         expect(resources).to.not.contain('req2');
       });
     });
+    describe('loading JSON', () => {
+      beforeEach(() => {
+        this.jsonUrl = './util/animals.json';
+        this.requests = [];
+        this.xhr = sinon.useFakeXMLHttpRequest();
+        this.xhr.onCreate = (xhr) => this.requests.push(xhr);
+      });
+      afterEach(() => {
+        if (this.xhr) this.xhr.restore()
+      });
+      it('allows overriding of the built-in XHR with .ajax', (done) => {
+        this.subject.declareResource({
+          name: 'xhrMyAjax',
+          json: this.jsonUrl,
+          ajax: (function (path) {
+            expect(path).to.eql(this.jsonUrl);
+            done();
+          }).bind(this)
+        });
+      });
+      it('provides the parsed JSON as the result', (done) => {
+        let result = { animals: ["zebra", "unicorn"] };
+        this.subject.
+          declareResource({
+            name: 'jsonResult',
+            requires: 'jsonSource',
+            jsonResult: function(jsonSource) {
+              expect(jsonSource).to.deep.equal(result);
+              done();
+            }
+          }).
+          declareResource({
+            name: 'jsonSource',
+            json: 'fakePath'
+          })
+        ;
+        later(() => this.requests[0].respond(200, {'Content-Type': 'application/json'}, JSON.stringify(result)))
+      });
+      it('throws a FetchError for non-JSON', (done) => {
+        expect(this.subject.declareResource({name: 'notJson', json: 'fakePath'}).promiseFor('notJson')).to.eventually.be.rejectedWith(BootLoader.FetchError).notify(done);
+        later(() => this.requests[0].respond(200, {'Content-Type': 'text/plain'}, '{}'))
+      });
+      it('throws a FetchError for non-success', (done) => {
+        expect(this.subject.declareResource({name: 'notSuccess', json: 'fakePath'}).promiseFor('notSuccess')).to.eventually.be.rejectedWith(BootLoader.FetchError).notify(done);
+        later(() => this.requests[0].respond(404))
+      });
+    }); // loading JSON
+    describe('loading scripts', () => {
+      beforeEach(() => {
+        this.globalDoc = _global.document;
+        _global.document = jsdom('<html><body></body></html>', {
+          resourceLoader: (resource, callback) => {
+            if (/bogus/.test(resource.url.pathname)) return callback(new Error('Not Found'));
+            callback(null, "document.body.appendChild(document.createElement('blink'));");
+          },
+          features: {
+            FetchExternalResources: ['script'],
+            ProcessExternalResources: ['script'],
+            SkipExternalResources: false
+          }
+        });
+      });
+      afterEach(() => {
+        if (this.globalDoc) _global.document = this.globalDoc;
+      });
+      it('adds a script tag to the body', (done) => {
+        this.subject.declareResource({
+          name: 'someScript',
+          script: '/valid/path.js'
+        }).promiseFor('someScript').then(() => {
+          expect(serializeDocument(_global.document)).to.match(/<blink>/i);
+          done();
+        });
+      });
+      it('throws a FetchError for a missing script', (done) => {
+        expect(this.subject.declareResource({
+          name: 'missingScript',
+          script: '/bogus/path.js'
+        }).promiseFor('missingScript')).to.eventually.be.rejectedWith(BootLoader.FetchError).notify(done);
+      });
+    }); // loading scripts
     describe('functionality', () => {
       it('calls provider functions as their dependencies become available', (done) => {
         let ops = [];
         this.subject.
-          declareResource({name: 'A', requires: ['B', 'C'], A: () => ops.push('A')}).
-          declareResource({name: 'B', B: () => ops.push('B')}).
-          declareResource({name: 'C', requires: 'B', C: () => ops.push('C')})
+          declareResource({name: 'A', requires: ['B', 'C'], A: () => {
+            expect(ops).to.eql(['B', 'C']);
+            done();
+          }}).
+          declareResource({name: 'B', B: () => {
+            expect(ops).to.eql([]);
+            ops.push('B')
+          }}).
+          declareResource({name: 'C', requires: 'B', C: () => {
+            expect(ops).to.eql(['B']);
+            ops.push('C')
+          }})
         ;
-        setTimeout(() => {
-          expect(ops).to.eql(['B', 'C', 'A']);
-          done();
-        }, 1);
       });
       it('passes dependencies into provider functions', (done) => {
         this.subject.
@@ -103,6 +197,6 @@ describe('BootLoader', function() {
           declareResource({name: 'C', requires: 'B', C: () => 'CC'})
         ;
       });
-    });
-  });
-});
+    }); // functionality
+  }); // instance
+}); // BootLoader

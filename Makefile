@@ -3,8 +3,9 @@ SRC := es6
 SPEC_SRC := spec
 SPEC_DEST := test
 ENTRY := bootloader.js
+ENTRY_BABEL := bootloader-babel.js
 
-.PHONY: all node test clean
+.PHONY: all node test clean watch
 
 all: node test
 
@@ -27,3 +28,5 @@ clean:
 	  rm -Rf $(SPEC_DEST); \
 	fi
 
+watch:
+	@node_modules/.bin/watchify $(ENTRY_BABEL) -v -t babelify -o $(ENTRY)

@@ -75,6 +75,19 @@ class Resource {
     else if (!this.requires) this.requires = [];
     if (!Array.isArray(this.requires)) throw new InvalidRequiresError();
     this.provider = definition[this.name];
+    if ((this.provider !== void 0) && ((definition.json !== void 0) || (definition.script !== void 0))) throw new InvalidResourceError('Cannot have both a provider and json/script.');
+    if (definition.script !== void 0) {
+      this.script = definition.script;
+      if (typeof this.script !== 'string') throw new InvalidUrlError();
+      let getScript = typeof definition.getScript === 'function' ? definition.getScript : fetchScript;
+      this.provider = () => Promise.resolve(getScript(this.script));
+    }
+    else if (definition.json !== void 0) {
+      this.json = definition.json;
+      if (typeof this.json !== 'string') throw new InvalidUrlError();
+      let ajax = typeof definition.ajax === 'function' ? definition.ajax : fetchJson;
+      this.provider = () => Promise.resolve(ajax(this.json));
+    }
     if (typeof this.provider !== 'function') throw new InvalidProviderError(this.name);
   }
 
@@ -109,15 +122,78 @@ function buildResolvablePromise() {
   return promise;
 }
 
+function fetchScript(href) {
+  return new Promise((resolve, reject) => {
+    let el = document.createElement('script');
+    let cleanUp = () => { if (el && el.parentNode) el.parentNode.removeChild(el); };
+    el.onload = function fetchScriptOnLoad() {
+      cleanUp();
+      resolve();
+    };
+    el.onerror = function fetchScriptError(err) {
+      cleanUp();
+      let message = '(unknown)';
+      if (err && err.error) message = err.error;
+      if (err && err.statusText) message = err.statusText;
+      if (err && err.message) message = err.message;
+      reject(new FetchError(`Script fetch error: ${message}`));
+    };
+    if (el.addEventListener) el.addEventListener('error', el.onerror);
+    else if (el.attachEvent) el.attachEvent('onerror', el.onerror);
+    el.src = href;
+    el.setAttribute('defer', 'defer');
+    el.setAttribute('async', 'async');
+    (document.querySelector('head') || document.head || document.body).appendChild(el);
+  });
+}
+
+function xhrFetch(url, method = 'GET') {
+  return new Promise((resolve, reject) => {
+    let xhr = new XMLHttpRequest();
+    xhr.onload = function getScriptOnLoad(response) {
+      if (response.target) response = response.target;
+      if (!response || !('status' in response)) reject(new FetchError('Invalid XHR response.'));
+      if ((response.status !== 0) && ((response.status < 200) || (response.status >= 300))) reject(new FetchError(`Unsuccessful XHR response: ${response.status}`));
+      resolve(response);
+    };
+    xhr.onerror = function getScriptOnError(err) {
+      let message = '(unknown)';
+      if (err && err.statusText) message = err.statusText;
+      reject(new FetchError(`XHR error: ${message}`));
+    };
+    xhr.open(method, url, true);
+    xhr.send();
+  });
+}
+
+function fetchJson(url, method = 'GET') {
+  return xhrFetch(url, method).then((response) => {
+    let type = response.getResponseHeader('Content-Type');
+    if (!type.match(/json/i)) throw new FetchError(`Resource does not look like JSON: ${type}`);
+    try {
+      return JSON.parse(response.responseText);
+    } catch (err) {
+      throw new FetchError(`Resource is not JSON: ${err.message}`);
+    }
+  });
+}
+
 class DuplicateResourceNameError extends Error { constructor(name) { super(`Duplicate resource name: ${name}`); } }
 
 class InvalidResourceError extends Error {}
-class UnnamedResourceError extends SyntaxError {}
-class InvalidRequiresError extends SyntaxError {}
+class UnnamedResourceError extends Error {}
+class InvalidRequiresError extends Error {}
 class InvalidProviderError extends Error { constructor(name) { super(`Invalid provider: ${name}`); } }
+class InvalidUrlError extends Error {}
+class FetchError extends Error {}
 
 BootLoader.DuplicateReourceNameError = DuplicateResourceNameError;
 BootLoader.UnnamedResourceError = UnnamedResourceError;
 BootLoader.InvalidRequiresError = InvalidRequiresError;
 BootLoader.InvalidResourceError = InvalidResourceError;
 BootLoader.InvalidProviderError = InvalidProviderError;
+BootLoader.InvalidUrlError = InvalidUrlError;
+BootLoader.FetchError = FetchError;
+BootLoader.xhrFetch = xhrFetch;
+BootLoader.fetchJson = fetchJson;
+BootLoader.fetchScript = fetchScript;
